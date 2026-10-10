@@ -1,0 +1,746 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#3b2a22">
+<meta name="description" content="스콧 라오 이론을 기준으로 한 로스팅 프로파일 설계·기록·조언">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<title>라오 로스팅 노트</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Gowun+Dodum&family=IBM+Plex+Sans+KR:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: phone-first single column — sliders card → profile chart (BT + RoR) → heat/air strip → evidence; bottom tab bar */
+:root{
+  --bg:#f2f0ea; --paper:#fbfaf6; --ink:#2a221d; --muted:#6e645b; --line:#dcd4c8; --grid:#e8e2d8;
+  --bt:#b4532a; --ror:#4f6d8a; --target:#9a8f84; --heat:#c0392b; --air:#5b7f4b; --good:#3f7d4e; --warn:#a36b00; --bad:#b03a2e;
+  --chip:#efe9df; --accent:#3b2a22;
+  --display:"Gowun Dodum","IBM Plex Sans KR",system-ui,sans-serif;
+  --body:"IBM Plex Sans KR",system-ui,-apple-system,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Consolas,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#191512; --paper:#221d19; --ink:#ede6dc; --muted:#a6998c; --line:#3a322b; --grid:#2c2621;
+  --bt:#ec8b5d; --ror:#8fb0cf; --target:#7d7369; --heat:#f07c6c; --air:#9cc286; --good:#7cc08d; --warn:#e3b04f; --bad:#f08a7e;
+  --chip:#2d2621; --accent:#ede6dc; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#191512; --paper:#221d19; --ink:#ede6dc; --muted:#a6998c; --line:#3a322b; --grid:#2c2621;
+  --bt:#ec8b5d; --ror:#8fb0cf; --target:#7d7369; --heat:#f07c6c; --air:#9cc286; --good:#7cc08d; --warn:#e3b04f; --bad:#f08a7e;
+  --chip:#2d2621; --accent:#ede6dc; color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.55;-webkit-tap-highlight-color:transparent}
+.wrap{max-width:720px;margin:0 auto;padding-inline:16px;padding-block:calc(14px + env(safe-area-inset-top,0px)) calc(92px + env(safe-area-inset-bottom,0px))}
+header h1{font-family:var(--display);font-weight:400;font-size:1.65rem;margin:0}
+header p{margin:.15rem 0 0;color:var(--muted);font-size:.84rem}
+h2{font-family:var(--display);font-weight:400;font-size:1.18rem;margin:1.3rem 0 .55rem;text-wrap:balance}
+.card{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:14px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{flex:1 1 0;min-width:0;font:inherit;font-size:.9rem;padding:9px 6px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.seg button[aria-pressed="true"]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+.lbl{font-size:.78rem;color:var(--muted);letter-spacing:.03em;margin:12px 0 5px;display:flex;justify-content:space-between;gap:8px}
+.lbl b{font-family:var(--mono);font-weight:500;color:var(--ink);font-size:.95rem;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;height:34px;margin:0;accent-color:var(--bt);touch-action:pan-y}
+.rec{font-size:.72rem;color:var(--muted);margin-top:-2px}
+.rec button{font:inherit;font-size:.72rem;border:1px solid var(--line);background:var(--chip);color:var(--ink);border-radius:6px;padding:1px 6px;margin-left:4px;cursor:pointer}
+.chart{width:100%;height:auto;display:block;touch-action:none;user-select:none;-webkit-user-select:none}
+.chart text{font-family:var(--mono);font-size:10px;fill:var(--muted)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:.75rem;color:var(--muted);margin-top:6px}
+.legend i{display:inline-block;width:14px;height:3px;border-radius:2px;vertical-align:middle;margin-right:4px}
+.hint{font-size:.78rem;color:var(--muted);margin:.4rem 0 0}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+@media (max-width:460px){.kpis{grid-template-columns:repeat(2,1fr)}}
+.kpi{background:var(--paper);border:1px solid var(--line);border-radius:10px;padding:9px 10px;min-width:0}
+.kpi b{display:block;font-family:var(--mono);font-weight:500;font-size:1.08rem;font-variant-numeric:tabular-nums}
+.kpi span{font-size:.72rem;color:var(--muted)}
+.ev{border-left:3px solid var(--line);padding:3px 0 3px 10px;margin:7px 0;font-size:.88rem}
+.ev .s{display:block;font-size:.72rem;color:var(--muted)}
+.ev.app{border-color:var(--warn)}
+.badge{display:inline-block;font-size:.66rem;padding:0 6px;border-radius:99px;background:var(--chip);color:var(--warn);margin-left:4px;vertical-align:1px}
+.f{border-radius:10px;padding:10px 12px;margin:8px 0;background:var(--paper);border:1px solid var(--line);border-left-width:4px}
+.f.good{border-left-color:var(--good)} .f.warn{border-left-color:var(--warn)} .f.bad{border-left-color:var(--bad)}
+.f .ti{font-weight:600;font-size:.93rem}
+.f .s{font-size:.74rem;color:var(--muted)}
+.f ul{margin:6px 0 0;padding-left:18px;font-size:.88rem}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chips button{font:inherit;font-size:.85rem;padding:6px 10px;border-radius:99px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer}
+.chips button[aria-pressed="true"]{background:var(--bad);color:#fff;border-color:var(--bad)}
+.btn{font:inherit;font-size:1rem;padding:12px 14px;border-radius:10px;border:0;background:var(--accent);color:var(--paper);cursor:pointer;width:100%}
+.btn.ghost{background:var(--chip);color:var(--ink);border:1px solid var(--line)}
+.row{display:flex;gap:8px} .row>*{flex:1;min-width:0}
+.list .it{padding:10px 0;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center}
+.list .it .m{flex:1;min-width:0}
+.list .it .m b{display:block;font-size:.92rem}
+.list .it .m span{font-size:.76rem;color:var(--muted)}
+.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--paper);border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom,0px);z-index:5}
+.tabs button{flex:1;font:inherit;font-size:.82rem;background:none;border:0;color:var(--muted);padding:12px 2px;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--ink);font-weight:600;box-shadow:inset 0 2px 0 var(--bt)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--bt);outline-offset:2px}
+select,input[type=text]{font:inherit;padding:9px 10px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+textarea{font:inherit;font-size:.8rem;width:100%;min-height:90px;border-radius:9px;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px}
+.muted{color:var(--muted)}
+.toast{position:fixed;left:50%;bottom:calc(76px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--accent);color:var(--paper);padding:8px 14px;border-radius:99px;font-size:.86rem;z-index:9}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+#sel-ctl button{font-size:.8rem;padding:9px 2px}
+#sel-read b{font-family:var(--mono);color:var(--ink);font-size:1.05rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header><h1>라오 로스팅 노트</h1><p>스콧 라오 『커피 로스팅』을 기준으로, 장서 8권으로 보완합니다. 모든 줄에 근거 쪽수가 붙습니다.</p></header>
+
+  <!-- 계획 -->
+  <section id="tab-plan">
+    <div class="card">
+      <div class="lbl">로스터기</div><div class="seg" id="s-roaster"></div>
+      <div class="lbl">생두 이름 (일지에서 묶어 볼 이름)</div><input type="text" id="bean" placeholder="예: 에티오피아 구지 내추럴 G1">
+      <div class="lbl">가공</div><div class="seg" id="s-process" data-k="process"><button data-v="washed">워시드</button><button data-v="natural">내추럴</button><button data-v="honey">허니</button></div>
+      <div class="lbl">밀도</div><div class="seg" id="s-density" data-k="density"><button data-v="low">낮음</button><button data-v="medium">중간</button><button data-v="high">높음</button></div>
+      <div class="lbl">목표 배전도</div><div class="seg" id="s-level" data-k="level"><button data-v="light">라이트</button><button data-v="medium">미디엄</button><button data-v="fullcity">풀시티</button><button data-v="dark">다크</button></div>
+      <div class="lbl">용도 · DTR 기준</div><div class="seg" id="s-use" data-k="useMode"><button data-v="rao">라오 20~25%</button><button data-v="yoo">필터 22~28% (유승권)</button></div>
+      <div class="lbl"><span>투입량</span><b id="v-grams"></b></div><input type="range" id="r-grams" min="100" max="2500" step="10">
+      <div class="lbl"><span>생두 수분</span><b id="v-moist"></b></div><input type="range" id="r-moist" min="6" max="14" step="0.1">
+      <div class="rec">라오: 이상적 수분 10.5~11.5% (p.16)</div>
+      <div class="lbl"><span>투입 온도</span><b id="v-charge"></b></div><input type="range" id="r-charge" min="160" max="240" step="1">
+      <div class="rec" id="rec-charge"></div>
+      <div class="lbl"><span>1차 크랙 목표 시각</span><b id="v-fct"></b></div><input type="range" id="r-fct" min="360" max="720" step="5">
+      <div class="rec">반열풍 1차 크랙 8~9분 (전광수 p.70 · p.263)</div>
+      <div class="lbl"><span>DTR 목표</span><b id="v-dtr"></b></div><input type="range" id="r-dtr" min="15" max="35" step="0.5">
+      <div class="rec" id="rec-dtr"></div>
+      <div class="lbl"><span>배출 온도</span><b id="v-drop"></b></div><input type="range" id="r-drop" min="185" max="245" step="1">
+      <div class="rec" id="rec-drop"></div>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><b id="k-fill">–</b><span>투입 비율</span></div>
+      <div class="kpi"><b id="k-total">–</b><span>예상 총 시간</span></div>
+      <div class="kpi"><b id="k-yellow">–</b><span>옐로 170℃ 예상</span></div>
+      <div class="kpi"><b id="k-rorfc">–</b><span>1차 크랙 때 RoR</span></div>
+    </div>
+
+    <h2>목표 프로파일</h2>
+    <div class="card">
+      <svg class="chart" id="c-plan" viewBox="0 0 360 230" role="img" aria-label="목표 원두 온도와 RoR 곡선"></svg>
+      <div class="legend"><span><i style="background:var(--bt)"></i>원두 온도(목표)</span><span><i style="background:var(--ror)"></i>RoR ℃/분</span><span><i style="background:var(--target)"></i>기준점</span></div>
+      <svg class="chart" id="c-plan-ctl" viewBox="0 0 360 110" role="img" aria-label="화력과 공기흐름 계획" style="margin-top:10px"></svg>
+      <div class="legend"><span><i style="background:var(--heat)"></i>화력 %</span><span><i style="background:var(--air)"></i>공기(댐퍼) 열림</span></div>
+      <p class="hint">아래 띠의 점을 손가락으로 끌어 화력·공기 계획을 바꿀 수 있습니다. 위 그래프의 주황 점(1차 크랙·배출)도 끌 수 있습니다.</p>
+      <div id="plan-warn"></div>
+    </div>
+
+    <h2>조작 순서</h2>
+    <div id="plan-steps"></div>
+    <h2>근거</h2>
+    <div id="plan-ev"></div>
+    <div style="margin-top:14px"><button class="btn" id="to-log" type="button">이 계획으로 로스팅 기록 시작</button></div>
+  </section>
+
+  <!-- 기록 -->
+  <section id="tab-log" hidden>
+    <div class="card">
+      <div class="lbl"><span id="log-title">기록</span><span id="log-sub" class="muted"></span></div>
+      <div class="lbl" style="margin-top:0"><span id="sel-read">점을 누르면 정확한 값이 나옵니다</span></div>
+      <div class="seg" id="sel-ctl" style="margin-bottom:8px"><button type="button" data-adj="prev">◀ 앞</button><button type="button" data-adj="-1">−1℃</button><button type="button" data-adj="-0.5">−0.5</button><button type="button" data-adj="0.5">+0.5</button><button type="button" data-adj="1">+1℃</button><button type="button" data-adj="next">다음 ▶</button></div>
+      <svg class="chart" id="c-log" viewBox="0 0 360 470" role="img" aria-label="실제 원두 온도 기록 (격자)"></svg>
+      <div class="legend"><span><i style="background:var(--target)"></i>목표</span><span><i style="background:var(--bt)"></i>실제(30초 점)</span><span><i style="background:var(--ror)"></i>실제 RoR</span></div>
+      <p class="hint">30초마다의 점을 위아래로 끌어 실제 온도에 맞추고, 점을 누른 뒤 ±버튼으로 0.5℃ 단위까지 맞추세요. 세로선(중점·1차 크랙·배출)은 좌우로 끌어 실제 시각에 맞춥니다. 파란 숫자는 직전 1분 동안 오른 온도(RoR, ℃/분)입니다.</p>
+      <svg class="chart" id="c-log-ctl" viewBox="0 0 360 110" role="img" aria-label="실제 화력과 공기" style="margin-top:8px"></svg>
+      <p class="hint">실제로 바꾼 화력·공기도 점을 끌어 남겨 두면 다음 계획에 쓰입니다.</p>
+    </div>
+    <h2>결과</h2>
+    <div class="card">
+      <div class="lbl"><span>볶은 원두 무게</span><b id="v-roasted"></b></div><input type="range" id="r-roasted" min="0" max="2500" step="1">
+      <div class="rec" id="rec-loss"></div>
+      <div class="lbl">맛에서 느낀 결점 (라오 p.83~85 판단표)</div>
+      <div class="chips" id="defects"></div>
+      <div class="lbl"><span>전체 만족도</span><b id="v-score"></b></div><input type="range" id="r-score" min="1" max="10" step="1">
+      <div class="lbl">메모</div><input type="text" id="memo" placeholder="향·맛 메모">
+    </div>
+    <div class="row" style="margin-top:12px"><button class="btn ghost" id="analyze" type="button">조언 보기</button><button class="btn" id="save" type="button">일지에 저장</button></div>
+  </section>
+
+  <!-- 조언 -->
+  <section id="tab-adv" hidden>
+    <h2>이번 로스팅 진단</h2>
+    <div id="adv-list"><p class="muted">기록 탭에서 점을 맞추고 '조언 보기'를 누르세요.</p></div>
+    <h2>다음 로스팅에서 바꿀 것</h2>
+    <div id="adv-next"></div>
+  </section>
+
+  <!-- 일지 -->
+  <section id="tab-hist" hidden>
+    <h2>로스팅 일지</h2>
+    <div class="card"><svg class="chart" id="c-trend" viewBox="0 0 360 150" role="img" aria-label="DTR과 총 시간 추이"></svg>
+      <div class="legend"><span><i style="background:var(--bt)"></i>DTR %</span><span><i style="background:var(--good)"></i>라오 목표 20~25%</span><span><i style="background:var(--ror)"></i>만족도</span></div></div>
+    <div class="list" id="hist"></div>
+  </section>
+
+  <!-- 설정 -->
+  <section id="tab-set" hidden>
+    <h2>기기 설정</h2>
+    <div id="devs"></div>
+    <h2>주인님 기기 보정값</h2>
+    <div class="card" id="cal"></div>
+    <h2>백업</h2>
+    <div class="card">
+      <p class="hint" style="margin-top:0">일지는 이 휴대폰의 이 브라우저에만 저장됩니다. 휴대폰을 바꾸거나 브라우저 데이터를 지우기 전에 백업하세요.</p>
+      <div class="row"><button class="btn ghost" id="bk-copy" type="button">백업 내용 복사</button><button class="btn ghost" id="bk-file" type="button">백업 파일 저장</button></div>
+      <div class="lbl">복원 (백업 내용을 붙여 넣기)</div><textarea id="bk-in"></textarea>
+      <button class="btn" id="bk-restore" type="button" style="margin-top:8px">복원</button>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="plan" aria-selected="true">계획</button>
+  <button role="tab" data-tab="log">기록</button>
+  <button role="tab" data-tab="adv">조언</button>
+  <button role="tab" data-tab="hist">일지</button>
+  <button role="tab" data-tab="set">설정</button>
+</nav>
+
+<script>/* 라오 기준 로스팅 엔진 — 스콧 라오 『커피 로스팅』(한국어판)을 1순위로, 다른 장서 8권으로 보완.
+   책에 없는 값은 반드시 { app:true } 로 표시한다(화면에 '앱 계산' 배지). 결정론 함수만 둔다. */
+(function (root) {
+  "use strict";
+  const R = (t, s) => ({ t, s });           // 근거 문장
+  const APP = (t) => ({ t, s: "앱 계산(책에 수치 없음)", app: true });
+
+  const LEVELS = {
+    light:    { name: "라이트",  raoCue: "1차 크랙 끝나기 직전~직후 배출", raoSrc: "라오 p.103 · p.27", drop: [195, 205], dropSrc: "문준웅 p.103 · Killebrew p.91", loss: [11, 13], lossSrc: "라오 p.28" },
+    medium:   { name: "미디엄",  raoCue: "1차 크랙 종료 후 약 30초 무렵", raoSrc: "라오 p.28", drop: [210, 220], dropSrc: "Killebrew p.92", loss: [14, 16], lossSrc: "라오 p.28" },
+    fullcity: { name: "풀시티",  raoCue: "2차 크랙 직전 배출", raoSrc: "라오 p.25 · p.103", drop: [225, 230], dropSrc: "문준웅 p.103", loss: [17, 18], lossSrc: "라오 p.28(2차 크랙 시작 즈음)" },
+    dark:     { name: "다크",    raoCue: "2차 크랙 시작 이후, 표면에 기름이 배어나오면 배출", raoSrc: "라오 p.103 · p.106", drop: [230, 235], dropSrc: "문준웅 p.103", loss: [22, 30], lossSrc: "라오 p.28(22% 이상)" }
+  };
+
+  const mmss = (sec) => { sec = Math.max(0, Math.round(sec)); return Math.floor(sec / 60) + ":" + String(sec % 60).padStart(2, "0"); };
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+
+  /* ── 1. 투입 온도 ─────────────────────────────── */
+  function chargeTemp(dev, inp) {
+    const fill = inp.grams / (dev.capacityKg * 1000) * 100;
+    const why = [];
+    const base = { high: 200, medium: 195, low: 190 }[inp.density];
+    let lo = base, hi = base;
+    why.push(R("밀도 " + ({ high: "높음 200℃", medium: "중간 195℃", low: "낮음 190℃" })[inp.density] + "에서 출발 (라오는 '고밀도일수록 높게'라는 방향만 제시, 수치는 권대옥)", "라오 p.55 · 권대옥 p.70"));
+    if (inp.process === "natural") { lo -= 10; why.push(R("내추럴은 쉽게 타므로 투입 온도·가스를 낮춤 (폭은 이창렬 예: 195→185℃)", "라오 p.19 · p.56 · 이창렬 p.84")); }
+    if (inp.moisture <= 6) { lo -= 30; hi -= 20; why.push(R("수분 6% 이하: 기준보다 20~30℃ 낮게", "전광수 p.85 · 라오 p.16(수분 낮으면 조심스럽게 가열)")); }
+    else if (inp.moisture <= 9) { lo = Math.min(lo, 190); hi = Math.min(hi, 190); why.push(R("수분 9% 이하: 190℃ 이하", "권대옥 분철2 p.4 · 라오 p.16")); }
+    else if (inp.moisture > 11.5) why.push(R("수분이 매우 많으면 시간과 화력으로 에너지를 더 줘야 함 (이상적 수분 10.5~11.5%)", "라오 p.16"));
+    if (fill >= 80) { lo += 20; hi += 30; why.push(R("투입량 80% 이상: 기준보다 20~30℃ 높게 (라오도 '많을수록 높게')", "전광수 p.84 · 라오 p.55")); }
+    if (inp.beanSize === "large") why.push(R("큰 생두는 투입 온도를 높임 (폭은 책에 없음)", "라오 p.55"));
+    const a = Math.min(lo, hi), b = Math.max(lo, hi);
+    const warn = [];
+    if (a < 193 || b > 227) warn.push(R("라오가 말하는 고전 드럼 투입 온도 범위(193~227℃)를 벗어납니다. 드럼 두께·재질에 따라 다르니 기기 실측으로 판단하세요.", "라오 p.55"));
+    return { lo: a, hi: b, mid: Math.round((a + b) / 2), why, warn, fill };
+  }
+
+  /* ── 2. 목표 곡선 (RoR 지속 감소) ───────────────
+     BT(t) = A − B·e^(−t/τ) 는 RoR이 항상 줄어드는 곡선이다(라오 계명 II).
+     중점·1차 크랙·배출 세 점을 지나도록 τ를 이분법으로 푼다. 곡선 모양 자체는 앱 계산. */
+  function fitCurve(p1, p2, p3) {
+    const [t1, T1] = p1, [t2, T2] = p2, [t3, T3] = p3;
+    const target = (T3 - T2) / (T2 - T1);
+    const g = (tau) => (Math.exp(-t2 / tau) - Math.exp(-t3 / tau)) / (Math.exp(-t1 / tau) - Math.exp(-t2 / tau));
+    const linear = (t3 - t2) / (t2 - t1);           // τ→∞ 극한
+    if (!(target > 0) || target >= linear) return null; // RoR이 줄지 않는 목표 → 불가
+    let lo = 1, hi = 1e6;
+    for (let i = 0; i < 200; i++) { const mid = Math.sqrt(lo * hi); if (g(mid) < target) lo = mid; else hi = mid; }
+    const tau = Math.sqrt(lo * hi);
+    const B = (T2 - T1) / (Math.exp(-t1 / tau) - Math.exp(-t2 / tau));
+    const A = T1 + B * Math.exp(-t1 / tau);
+    return { A, B, tau, bt: (t) => A - B * Math.exp(-t / tau), ror: (t) => (B / tau) * Math.exp(-t / tau) * 60 };
+  }
+
+  function targetProfile(dev, inp, cal) {
+    const ch = chargeTemp(dev, inp);
+    const L = LEVELS[inp.level];
+    const dtr = inp.use === "filter" && inp.dtrSource === "yoo" ? [22, 28] : [20, 25];
+    const dtrMid = inp.dtrTarget != null ? inp.dtrTarget : (dtr[0] + dtr[1]) / 2;
+    const fcTime = inp.fcTime;                       // 사용자가 슬라이더로 정함, 기본 510초
+    const total = fcTime / (1 - dtrMid / 100);
+    const tpTime = cal.tpTime, tpTemp = cal.tpTemp, fcTemp = cal.fcTemp;
+    const dropTemp = inp.dropTemp;
+    const curve = fitCurve([tpTime, tpTemp], [fcTime, fcTemp], [total, dropTemp]);
+    const pts = [];
+    for (let t = 0; t <= total + 1; t += 5) {
+      let T;
+      if (t <= tpTime) { const k = t / tpTime; T = ch.mid - (ch.mid - tpTemp) * (1 - Math.pow(1 - k, 2)); }
+      else T = curve ? curve.bt(t) : NaN;
+      pts.push([t, T]);
+    }
+    const yellowTemp = 170; // 신혜경 p.54: 170℃ 노란색(옐로)
+    let yellowTime = null;
+    if (curve) for (let t = tpTime; t < fcTime; t += 1) if (curve.bt(t) >= yellowTemp) { yellowTime = t; break; }
+    const infeasible = !curve ? R("이 목표(1차 크랙 시각·온도, 배출 온도, DTR)로는 RoR이 계속 줄어드는 곡선을 만들 수 없습니다. 1차 크랙을 앞당기거나 DTR을 늘리거나 배출 온도를 낮추세요. (다크는 라오의 20~25%가 주로 약~중배전 전제)", "라오 p.62 · p.11") : null;
+    return { infeasible, dtrMid, charge: ch, dtr, total, fcTime, fcTemp, tpTime, tpTemp, dropTemp, curve, pts, yellowTime, yellowTemp, level: L,
+      evidence: [
+        R("1차 크랙은 전체 시간의 75~80% 지점 (= DTR 20~25%) — 75% 이전이면 플랫, 80% 넘으면 발현 부족", "라오 p.66 계명 III"),
+        inp.use === "filter" && inp.dtrSource === "yoo" ? R("필터용 DTR 22~28% (유승권). 라오 20~25%와 불일치 — 유승권 기준을 고르셨습니다", "유승권 p.105 · p.143 · p.181 (C10)") : R("DTR 20~25% (라오 기준)", "라오 p.66 · Killebrew p.105"),
+        R("고전 드럼 추천 총 시간 10~16분", "라오 p.57"),
+        R("RoR은 끝까지 계속 줄어야 함 — 목표 곡선은 이 원칙을 만족하는 모양으로 그림", "라오 p.62 계명 II"),
+        APP("곡선 모양(지수 접근형)과 중점 전 구간은 앱이 그린 것입니다. 기준점(중점·1차 크랙·배출)만 책·주인님 기기 값입니다."),
+        R("1차 크랙 기본 8:30 — 반열풍 1차 크랙 8~9분", "전광수 p.70 · p.263"),
+        R("마이야르 가속 121~149℃, 약 160℃부터 자체 지속, 카라멜화 약 171℃", "라오 p.33 · p.48"),
+        R("옐로(노란색) 표시점 170℃", "신혜경 p.54"),
+        APP("배출 온도 기본값은 배전도별 책 범위의 위쪽(상한 −2℃)입니다. 손으로 옮겨 정하세요.")
+      ] };
+  }
+
+  /* ── 3. 화력·공기 계획 (라오 기본 + 반열풍 보완) ───── */
+  function controlPlan(dev, inp, prof) {
+    const fill = prof.charge.fill;
+    const steps = [];
+    const fc = prof.fcTime, y = prof.yellowTime || Math.round(fc * 0.55);
+    if (fill < 50 && inp.useYeoyeol) {
+      steps.push({ t: 0, heat: 0, air: 0.0, label: "투입 · 여열 1번", why: [R("반열풍 50% 미만 투입: 투입 직후 버너 끔/최소, 약 1분 30초", "전광수 p.87 · p.121 · p.187")] });
+      steps.push({ t: 90, heat: 100, air: 0.2, label: "재점화 · 강하게", why: [R("계명 I: 초반에 충분한 열 — 부족하면 시간이 길어져 향미 손실", "라오 p.60"), R("여열 후 재점화", "전광수 p.121")] });
+    } else {
+      steps.push({ t: 0, heat: 100, air: fill >= 50 ? 1 / 3 : 0.2, label: "투입 · 초반 강한 열", why: [R("계명 I: 초반에 충분한 열. 가스는 처음 높였다가 유지 또는 점차 낮춤", "라오 p.60 · p.53"), fill >= 50 ? R("50% 이상 투입이면 투입 때 댐퍼 1/3 개방", "권대옥 분철1 p.1") : R("공기흐름은 초반 적게", "라오 p.53")] });
+    }
+    steps.push({ t: y, heat: 85, air: 0.5, label: "옐로우 · 채프·연기 시작", why: [R("채프·연기가 늘기 시작하면 공기흐름을 조금씩 늘림 (한 번에 크게 늘리면 RoR을 완만히 줄일 수 없음)", "라오 p.49 · p.53"), APP("화력 85%는 '점차 낮춤'을 그림으로 옮긴 앱 기본값 — 손으로 조정하세요")] });
+    steps.push({ t: Math.max(y + 30, fc - 30), heat: 60, air: 0.7, label: "1차 크랙 30초 전", why: [R("1차 크랙 중 증발 냉각으로 RoR이 급락(crash)하고 직후 급상승(flick)하기 쉬움 — 미리 짐작하고 조정", "라오 p.63 · p.64"), R("샘플 로스터 예: 1차 크랙 약 30초 전 가스압 약 40% 감소", "라오 p.77"), R("반열풍은 1차 크랙 후 온도가 떨어지지 않을 만큼만 줄이고, 떨어지면 즉시 1~2단계 올림", "전광수 p.37")] });
+    steps.push({ t: Math.round(fc + (prof.total - fc) * 0.4), heat: 45, air: 0.9, label: "후반 1/3", why: [R("매캐함 방지: 로스팅 후반 1/3에서 공기흐름 증가", "라오 p.85"), APP("화력 45%는 앱 기본값 — RoR이 0으로 꺾이지 않게 조정")] });
+    const devNotes = [];
+    if (!dev.hasDamper) devNotes.push(R("댐퍼가 없으면 화력의 강약으로 배기를 조절 (강하면 배기가 빨라짐)", "전광수 p.335 · 권대옥 분철1 p.4"));
+    if (dev.airLever) devNotes.push(R("팬 하나로 드럼과 냉각조를 같이 쓰는 로스터는 냉각 중 드럼 온도 조정이 어렵다 — 레버 조작 순서 자체는 책 근거 없음", "라오 p.96"));
+    if (dev.castIron) devNotes.push(R("주물(두꺼운) 드럼은 화력 변화가 늦게 나타나므로 미리 조절", "신혜경 p.37 · p.69 · 라오 p.35(드럼 축열)"));
+    return { steps, devNotes };
+  }
+
+  /* ── 4. 기록 분석 → 조언 ───────────────────────── */
+  function rorSeries(temps) { // temps: [{t,T}] 1분 간격
+    const out = [];
+    for (let i = 1; i < temps.length; i++) {
+      const a = temps[i - 1], b = temps[i];
+      if (a.T == null || b.T == null) continue;
+      out.push({ t: b.t, ror: (b.T - a.T) / ((b.t - a.t) / 60) });
+    }
+    return out;
+  }
+
+  function analyze(dev, inp, log, prof) {
+    const findings = [];
+    const add = (level, title, ev, fix) => findings.push({ level, title, ev, fix });
+    const tp = log.events.tp, fc = log.events.fc, drop = log.events.drop;
+    // 시간 구조
+    if (fc && drop && drop.t > fc.t) {
+      const dtr = (drop.t - fc.t) / drop.t * 100, pos = fc.t / drop.t * 100;
+      const [a, b] = prof.dtr;
+      if (dtr < a) add("bad", `DTR ${dtr.toFixed(1)}% — 목표 ${a}~${b}%보다 짧음 (1차 크랙이 전체의 ${pos.toFixed(0)}% 지점)`, R("1차 크랙이 80% 넘으면 발현 불충분", "라오 p.66"),
+        [R("마지막 몇 분을 늘리지 말고 초기 온도 편차를 키워 1차 크랙을 앞당길 것 (더 뜨겁게 투입 또는 첫 수 분 가스 증가)", "라오 p.50 · p.85 · p.84")]);
+      else if (dtr > b) add("warn", `DTR ${dtr.toFixed(1)}% — 목표 ${a}~${b}%보다 김 (1차 크랙 ${pos.toFixed(0)}% 지점)`, R("1차 크랙이 75% 이전이면 플랫한 맛", "라오 p.66"),
+        [R("1차 크랙 이후를 의도적으로 늘리면 베이크드 — 배출을 앞당기거나 중반 화력을 낮춰 1차 크랙을 늦출 것", "라오 p.50 · p.56")]);
+      else add("good", `DTR ${dtr.toFixed(1)}% — 목표 ${a}~${b}% 안 (1차 크랙 ${pos.toFixed(0)}% 지점)`, R("계명 III", "라오 p.66"), []);
+      const tot = drop.t / 60;
+      if (tot < 10 || tot > 16) add("warn", `총 ${mmss(drop.t)} — 라오의 고전 드럼 권장 10~16분 밖`, R("고전 드럼 10:00~16:00", "라오 p.57"),
+        [tot < 10 ? R("너무 빠르면 투입 온도를 낮추거나 초반 화력을 줄임", "라오 p.56") : R("천천히 볶는다고 발현이 좋아지지 않음 — 전체 곡선 형태가 발현을 결정", "라오 p.57")]);
+    }
+    if (tp) {
+      if (tp.t < 60) add("warn", `중점 ${mmss(tp.t)} — 너무 빠름 (화력·투입 온도가 강함)`, R("중점은 대개 투입 후 70~90초", "라오 p.46 · 전광수 p.330"), [R("중점이 빨리 오면 화력이 강한 것", "전광수 p.330")]);
+      else if (tp.t > 120) add("warn", `중점 ${mmss(tp.t)} — 늦음 (초반 열 부족)`, R("중점은 대개 투입 후 70~90초 (유승권은 90~120초)", "라오 p.46 · 유승권 p.101"), [R("계명 I: 초반에 충분한 열", "라오 p.60")]);
+    }
+    // RoR 형태
+    const rs = rorSeries(log.temps).filter(r => r.t > 180); // 라오: 처음 2~3분은 온도계 랙
+    for (let i = 1; i < rs.length; i++) {
+      const d = rs[i].ror - rs[i - 1].ror;
+      const nearFc = fc && Math.abs(rs[i].t - fc.t) <= 90;
+      if (rs[i].ror <= 0) { add("bad", `${mmss(rs[i].t)} RoR ${rs[i].ror.toFixed(1)}℃/분 — 0 이하`, R("RoR이 0 또는 음수면 완전히 베이크드, 단맛 소실", "라오 p.63"), [R("RoR이 꺾이지 않도록 화력을 미리 조정", "라오 p.85 · 전광수 p.73")]); break; }
+      if (d > 0.5) { add(nearFc ? "warn" : "bad", `${mmss(rs[i].t)} RoR 상승 (${rs[i - 1].ror.toFixed(1)}→${rs[i].ror.toFixed(1)}℃/분)${nearFc ? " — 1차 크랙 직후 flick" : ""}`, R("계명 II: 첫 2~3분 이후 RoR이 오르면 발현·단맛 저하", "라오 p.62 · p.64"), [R(nearFc ? "1차 크랙 후 급상승 경향 — 크랙 직전 가스를 미리 줄여 대비" : "가스를 한 번에 크게 바꾸지 말고 RoR이 매끈하게 내려가게 조정", nearFc ? "라오 p.64 · p.77" : "라오 p.53 · p.85")]); break; }
+      if (Math.abs(d) <= 0.5 && i >= 1) { add("warn", `${mmss(rs[i - 1].t)}~${mmss(rs[i].t)} RoR 정체 (약 ${rs[i].ror.toFixed(1)}℃/분)`, R("RoR이 1분만 평행해도 단맛 파괴 — 종이·곡물 같은 플랫한 맛", "라오 p.62"), [R("1차 크랙 1~2분 전 수평 구간이 흔하므로 미리 대비", "라오 p.64")]); break; }
+      if (nearFc && d < -6) { add("warn", `${mmss(rs[i].t)} RoR 급락 (crash)`, R("RoR 급락 시 발현 부족 — 즉시 배출하지 않으면 베이크드", "라오 p.62 · p.64"), [R("1차 크랙 중 증발 냉각에 대비해 미리 조정", "라오 p.64")]); break; }
+    }
+    if (rs.length >= 3 && !findings.some(f => f.title.includes("RoR"))) add("good", "RoR이 매끈하게 계속 줄었습니다", R("계명 II", "라오 p.62"), []);
+    // 무게 손실
+    if (log.greenG && log.roastedG) {
+      const loss = (1 - log.roastedG / log.greenG) * 100, L = LEVELS[inp.level];
+      const ok = loss >= L.loss[0] - 0.5 && loss <= L.loss[1] + 0.5;
+      add(ok ? "good" : "warn", `무게 손실 ${loss.toFixed(1)}% — ${L.name} 기준 ${L.loss[0]}~${L.loss[1]}%`, R("무게 손실로 배전도 확인 · 같은 색이면 손실이 큰 쪽이 발현이 잘 됨", L.lossSrc + " · 라오 p.74"), []);
+    }
+    // 맛 결점 (라오 p.83~85 표)
+    const DEF = {
+      savory:  ["짭짤함", "발현 크게 부족", [R("더 뜨겁게 투입하거나 첫 수 분 가스를 늘려 초기 경사를 크게. 1차 크랙은 전체의 80% 이전", "라오 p.85")]],
+      grassy:  ["풋내", "발현 약간 부족", [R("초기 경사를 약간 높임. 1차 크랙 80% 이전", "라오 p.85")]],
+      sour:    ["시큼함", "내부 발현 약함", [R("초기 경사 또는 배전도를 살짝 높임. 추출 수율 19% 이상인지 먼저 확인", "라오 p.85 · p.86")]],
+      papery:  ["종이·지푸라기", "베이크드", [R("매끄럽게 진행 — RoR 평행·하락 금지", "라오 p.85")]],
+      smoky:   ["매캐함", "후반 공기흐름 부족", [R("후반 1/3 공기흐름 증가", "라오 p.85"), R("댐퍼가 없으면 화력 강약으로 배기 조절", "전광수 p.335")]],
+      grain:   ["눅눅한 곡물", "공기흐름 부족 또는 RoR 꺾임", [R("처음·중간 공기흐름 점검, 가스 공급 안정", "라오 p.85")]],
+      scorch:  ["그슬림·탄 자국", "드럼 과열", [R("더 천천히 로스팅하거나 최고 가스압을 낮춤", "라오 p.85"), R("고전 드럼은 과열 시 표면이 쉽게 탐", "라오 p.39")]],
+      bitter:  ["쓴단맛", "약간 과로스팅", [R("원치 않으면 더 약하게", "라오 p.85")]],
+      acrid:   ["톡 쏨·자극", "과로스팅 또는 공기흐름 부족", [R("더 약하게, 후반 공기흐름 확인", "라오 p.85")]]
+    };
+    (log.defects || []).forEach(k => { const d = DEF[k]; if (d) add("bad", `맛: ${d[0]} → 원인: ${d[1]}`, R("커핑 결점 판단표", "라오 p.83~85"), d[2]); });
+    if ((log.defects || []).some(k => ["sour", "grassy", "savory"].includes(k))) add("warn", "주의: 과소 추출을 발현 부족으로 오인하지 말 것", R("과소 추출을 발현 부족으로 착각해 더 볶거나 1차 크랙 후를 늘리면 커피를 굽게 됨 — 추출 수율 먼저 측정", "라오 p.87"), []);
+    return { findings, ror: rorSeries(log.temps) };
+  }
+
+  /* ── 5. 다음 로스팅 계획 제안 (지난 기록 기반) ───── */
+  function nextSuggestion(analysis) {
+    const out = [];
+    analysis.findings.filter(f => f.level !== "good").forEach(f => f.fix.forEach(x => out.push(x)));
+    const seen = new Set();
+    return out.filter(x => { const k = x.t; if (seen.has(k)) return false; seen.add(k); return true; });
+  }
+
+  const defaultDrop = (level) => LEVELS[level].drop[1] - 2;
+  root.RaoEngine = { defaultDrop, LEVELS, chargeTemp, fitCurve, targetProfile, controlPlan, analyze, rorSeries, nextSuggestion, mmss, clamp };
+})(typeof window !== "undefined" ? window : globalThis);
+</script>
+<script>(function () {
+"use strict";
+const E = window.RaoEngine, $ = (s) => document.querySelector(s), NS = "http://www.w3.org/2000/svg";
+const mmss = E.mmss, clamp = E.clamp;
+const store = {
+  get(k, d) { try { const v = localStorage.getItem("rao." + k); return v ? JSON.parse(v) : d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem("rao." + k, JSON.stringify(v)); } catch (e) {} }
+};
+function toast(msg) { const t = document.createElement("div"); t.className = "toast"; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 1800); }
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const evHTML = (r) => `<div class="ev${r.app ? " app" : ""}">${esc(r.t)}${r.app ? '<span class="badge">앱 계산<\/span>' : ""}<span class="s">근거: ${esc(r.s)}<\/span><\/div>`;
+
+/* ── 기기·보정 ── */
+const DEF_DEVS = {
+  easyster: { name: "이지스터 1kg", capacityKg: 1, heatMode: "kpa", maxKpa: 1.2, hasDamper: true, damperMin: 1, damperMax: 10, castIron: false, airLever: false, grams: 750,
+    cal: { tpTime: 80, tpTemp: 95, fcTemp: 196, fromLog: false } },
+  garanti: { name: "하스가란티 2.5kg", capacityKg: 2.5, heatMode: "relative", maxKpa: 0, hasDamper: false, damperMin: 0, damperMax: 0, castIron: true, airLever: true, grams: 1200,
+    cal: { tpTime: 80, tpTemp: 95, fcTemp: 196, fromLog: false } }
+};
+let devs = mergeDevs(store.get("devs", {}));
+function mergeDevs(saved) { const o = {}; for (const k in DEF_DEVS) o[k] = Object.assign({}, DEF_DEVS[k], saved[k] || {}, { cal: Object.assign({}, DEF_DEVS[k].cal, (saved[k] || {}).cal || {}) }); return o; }
+const saveDevs = () => store.set("devs", devs);
+
+/* ── 계획 상태 ── */
+let P = Object.assign({ roaster: "easyster", bean: "", process: "washed", density: "medium", level: "light", useMode: "rao",
+  grams: 750, moisture: 10.5, charge: null, fcTime: 510, dtr: 22.5, drop: null, ctl: null }, store.get("plan", {}));
+let prof = null, ctlPlan = null;
+const dev = () => devs[P.roaster];
+function inp() { return { grams: P.grams, density: P.density, moisture: P.moisture, process: P.process, level: P.level, use: P.useMode === "yoo" ? "filter" : "espresso",
+  dtrSource: P.useMode, fcTime: P.fcTime, dropTemp: P.drop ?? E.defaultDrop(P.level), dtrTarget: P.dtr, useYeoyeol: true }; }
+
+/* ── SVG 도우미 ── */
+function frame(svg, opt) {
+  const W = svg.viewBox.baseVal.width, H = svg.viewBox.baseVal.height;
+  const pad = Object.assign({ l: 30, r: opt.right ? 26 : 8, t: 8, b: 18 }, opt.pad || {});
+  const x = (t) => pad.l + (t / opt.xMax) * (W - pad.l - pad.r);
+  const y = (v) => pad.t + (1 - (v - opt.yMin) / (opt.yMax - opt.yMin)) * (H - pad.t - pad.b);
+  const y2 = opt.right ? (v) => pad.t + (1 - v / opt.right) * (H - pad.t - pad.b) : null;
+  const ix = (px) => clamp((px - pad.l) / (W - pad.l - pad.r) * opt.xMax, 0, opt.xMax);
+  const iy = (py) => opt.yMin + (1 - (py - pad.t) / (H - pad.t - pad.b)) * (opt.yMax - opt.yMin);
+  let g = "";
+  for (let t = 0; t <= opt.xMax; t += 60) { const gx = x(t); g += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${H - pad.b}" stroke="var(--grid)" stroke-width="1"/>`; if ((t / 60) % 2 === 0) g += `<text x="${gx}" y="${H - 5}" text-anchor="middle">${t / 60}<\/text>`; }
+  for (let v = Math.ceil(opt.yMin / opt.yStep) * opt.yStep; v <= opt.yMax; v += opt.yStep) { const gy = y(v); g += `<line x1="${pad.l}" y1="${gy}" x2="${W - pad.r}" y2="${gy}" stroke="var(--grid)"/><text x="${pad.l - 4}" y="${gy + 3}" text-anchor="end">${v}${opt.yUnit || ""}<\/text>`; }
+  if (opt.right) for (let v = 0; v <= opt.right; v += opt.rightStep) g += `<text x="${W - pad.r + 3}" y="${y2(v) + 3}" fill="var(--ror)" style="fill:var(--ror)">${v}<\/text>`;
+  return { W, H, pad, x, y, y2, ix, iy, grid: g };
+}
+const poly = (pts, color, w, dash) => pts.length > 1 ? `<polyline points="${pts.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")}" fill="none" stroke="${color}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ""} stroke-linejoin="round" stroke-linecap="round"/>` : "";
+function svgPoint(svg, ev) { const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
+function draggable(svg, onDrag, onEnd, onDown) {
+  let id = null;
+  svg.addEventListener("pointerdown", (ev) => { const h = ev.target.closest("[data-h]"); if (!h) return; id = h.dataset.h; svg.setPointerCapture(ev.pointerId); ev.preventDefault(); onDown && onDown(id); });
+  svg.addEventListener("pointermove", (ev) => { if (id == null) return; const p = svgPoint(svg, ev); onDrag(id, p.x, p.y); });
+  const end = () => { if (id != null) { id = null; onEnd && onEnd(); } };
+  svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
+}
+const handle = (id, cx, cy, color, r = 7) => `<circle cx="${cx}" cy="${cy}" r="${r + 9}" fill="transparent" data-h="${id}" style="cursor:grab"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="var(--paper)" stroke-width="2" pointer-events="none"/>`;
+
+/* ── 화력·공기 표기 ── */
+function heatText(d, h) {
+  if (h === 0) return "버너 끔";
+  if (d.heatMode === "kpa") return (d.maxKpa * h / 100).toFixed(2) + " kPa";
+  return (h <= 45 ? "약" : h <= 75 ? "중" : "강") + " · 최대의 " + Math.round(h) + "%";
+}
+function airText(d, a) {
+  if (!d.hasDamper) return "댐퍼 없음";
+  return "댐퍼 " + Math.round(d.damperMin + (d.damperMax - d.damperMin) * a);
+}
+
+/* ── 계획 화면 ── */
+function segInit(id, key, opts) {
+  const el = $(id);
+  if (opts) el.innerHTML = opts.map(([v, t]) => `<button type="button" data-v="${v}">${esc(t)}<\/button>`).join("");
+  el.addEventListener("click", (e) => { const v = e.target.dataset.v; if (!v) return; P[key] = v;
+    if (key === "roaster") { P.grams = devs[v].grams; P.ctl = null; }
+    if (key === "level") P.drop = null;
+    if (["density", "process"].includes(key)) P.charge = null;
+    renderPlan(); });
+}
+segInit("#s-roaster", "roaster", Object.entries(devs).map(([k, d]) => [k, d.name]));
+segInit("#s-process", "process"); segInit("#s-density", "density"); segInit("#s-level", "level"); segInit("#s-use", "useMode");
+function rangeBind(id, key, fmt, after) {
+  $(id).addEventListener("input", (e) => { P[key] = parseFloat(e.target.value); if (after) after(); renderPlan(true); });
+}
+rangeBind("#r-grams", "grams", null, () => { P.charge = null; });
+rangeBind("#r-moist", "moisture", null, () => { P.charge = null; });
+rangeBind("#r-charge", "charge"); rangeBind("#r-fct", "fcTime", null, () => { P.ctl = null; }); rangeBind("#r-dtr", "dtr", null, () => { P.ctl = null; }); rangeBind("#r-drop", "drop");
+$("#bean").addEventListener("input", (e) => { P.bean = e.target.value; store.set("plan", P); });
+
+function renderPlan(fromSlider) {
+  const d = dev();
+  prof = E.targetProfile(d, inp(), d.cal);
+  if (P.charge == null) P.charge = prof.charge.mid;
+  ctlPlan = E.controlPlan(d, inp(), prof);
+  if (!P.ctl) P.ctl = ctlPlan.steps.map((s) => ({ t: s.t, heat: s.heat, air: s.air, label: s.label }));
+  store.set("plan", P);
+  // 컨트롤 동기화
+  ["roaster", "process", "density", "level", "useMode"].forEach((k) => {
+    const el = $("#s-" + (k === "useMode" ? "use" : k)); [...el.children].forEach((b) => b.setAttribute("aria-pressed", b.dataset.v === P[k]));
+  });
+  $("#bean").value = P.bean;
+  $("#r-grams").max = Math.round(d.capacityKg * 1000);
+  const set = (id, v) => { if (!fromSlider || document.activeElement !== $(id)) $(id).value = v; };
+  set("#r-grams", P.grams); set("#r-moist", P.moisture); set("#r-charge", P.charge); set("#r-fct", P.fcTime); set("#r-dtr", P.dtr); set("#r-drop", inp().dropTemp);
+  $("#v-grams").textContent = P.grams + " g"; $("#v-moist").textContent = P.moisture.toFixed(1) + " %";
+  $("#v-charge").textContent = P.charge + " ℃"; $("#v-fct").textContent = mmss(P.fcTime); $("#v-dtr").textContent = P.dtr.toFixed(1) + " %"; $("#v-drop").textContent = inp().dropTemp + " ℃";
+  const ch = prof.charge;
+  $("#rec-charge").innerHTML = `추천 ${ch.lo === ch.hi ? ch.lo : ch.lo + "~" + ch.hi}℃ <button type="button" data-reset="charge">추천값으로<\/button>`;
+  $("#rec-dtr").textContent = `추천 ${prof.dtr[0]}~${prof.dtr[1]}% (${P.useMode === "yoo" ? "유승권 p.105 · p.143 · p.181" : "라오 p.66 계명 III"})`;
+  const L = E.LEVELS[P.level];
+  $("#rec-drop").innerHTML = `${L.name}: ${esc(L.raoCue)} (${esc(L.raoSrc)}) · 온도 ${L.drop[0]}~${L.drop[1]}℃ (${esc(L.dropSrc)}) <button type="button" data-reset="drop">기본값으로<\/button>`;
+  // KPI
+  $("#k-fill").textContent = Math.round(ch.fill) + "%";
+  $("#k-total").textContent = mmss(prof.total);
+  $("#k-yellow").textContent = prof.yellowTime ? mmss(prof.yellowTime) : "–";
+  $("#k-rorfc").textContent = prof.curve ? prof.curve.ror(P.fcTime).toFixed(1) + "℃" : "–";
+  drawPlanChart(); drawCtl($("#c-plan-ctl"), P.ctl, Math.max(prof.total, P.fcTime) + 60, d);
+  const warns = [].concat(prof.infeasible ? [prof.infeasible] : [], ch.warn, d.cal.fromLog ? [] : [{ t: `중점 ${d.cal.tpTemp}℃·${mmss(d.cal.tpTime)}, 1차 크랙 ${d.cal.fcTemp}℃는 처음 쓰는 임시 기준점입니다. 기록을 한 번 저장하면 주인님 기기 실측값으로 바뀝니다.`, s: "앱 계산 · 1차 크랙 온도는 로스터마다 다름(라오 p.72)", app: true }]);
+  $("#plan-warn").innerHTML = warns.map(evHTML).join("");
+  // 조작 순서
+  $("#plan-steps").innerHTML = P.ctl.map((s, i) => {
+    const base = ctlPlan.steps[i];
+    const why = base ? base.why.map(evHTML).join("") : "";
+    return `<div class="card" style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(s.label || "단계 " + (i + 1))}<\/b><span style="font-family:var(--mono);color:var(--bt)">${mmss(s.t)}<\/span><\/div>
+      <div class="chips" style="margin:6px 0"><span class="badge" style="color:var(--heat);font-size:.8rem">화력 ${esc(heatText(d, s.heat))}<\/span>${d.hasDamper ? `<span class="badge" style="color:var(--air);font-size:.8rem">${esc(airText(d, s.air))}<\/span>` : ""}<\/div>${why}<\/div>`;
+  }).join("") + ctlPlan.devNotes.map(evHTML).join("") + (d.hasDamper ? evHTML({ t: "댐퍼 눈금 환산(비율→1~10)은 앱 계산입니다. 책은 '1/3 개방'처럼 비율로만 말합니다.", s: "앱 계산", app: true }) : "") + (d.heatMode === "kpa" ? evHTML({ t: `kPa 값은 화력 % × 주인님 최대 화력 ${d.maxKpa} kPa로 환산한 것입니다.`, s: "앱 계산", app: true }) : "");
+  $("#plan-ev").innerHTML = ch.why.map(evHTML).join("") + prof.evidence.map(evHTML).join("");
+}
+document.addEventListener("click", (e) => { const r = e.target.dataset.reset; if (!r) return; P[r] = null; renderPlan(); });
+
+function drawPlanChart() {
+  const svg = $("#c-plan"), xMax = Math.ceil((Math.max(prof.total, 600) + 60) / 60) * 60;
+  const f = frame(svg, { xMax, yMin: 50, yMax: 250, yStep: 50, right: 30, rightStep: 10 });
+  let s = f.grid;
+  // 단계 띠
+  [[0, prof.yellowTime || 0, "건조"], [prof.yellowTime || 0, P.fcTime, "갈변"], [P.fcTime, prof.total, "디벨롭"]].forEach(([a, b, n], i) => {
+    if (b > a) s += `<rect x="${f.x(a)}" y="${f.pad.t}" width="${f.x(b) - f.x(a)}" height="10" fill="${["var(--chip)", "var(--grid)", "var(--chip)"][i]}"/><text x="${(f.x(a) + f.x(b)) / 2}" y="${f.pad.t + 8}" text-anchor="middle">${n}<\/text>`;
+  });
+  s += poly(prof.pts.filter((p) => isFinite(p[1])).map((p) => [f.x(p[0]), f.y(p[1])]), "var(--bt)", 2.2);
+  if (prof.curve) { const rp = []; for (let t = 120; t <= prof.total; t += 5) rp.push([f.x(t), f.y2(clamp(prof.curve.ror(t), 0, 30))]); s += poly(rp, "var(--ror)", 1.8, "5 3"); }
+  s += `<circle cx="${f.x(prof.tpTime)}" cy="${f.y(prof.tpTemp)}" r="4" fill="var(--target)"/><text x="${f.x(prof.tpTime) + 6}" y="${f.y(prof.tpTemp) + 12}">중점<\/text>`;
+  s += `<circle cx="${f.x(0)}" cy="${f.y(P.charge)}" r="4" fill="var(--target)"/><text x="${f.x(0) + 6}" y="${f.y(P.charge) - 6}">투입 ${P.charge}<\/text>`;
+  if (prof.yellowTime) s += `<circle cx="${f.x(prof.yellowTime)}" cy="${f.y(170)}" r="3.5" fill="var(--target)"/><text x="${f.x(prof.yellowTime) + 6}" y="${f.y(170) + 12}">옐로 170<\/text>`;
+  s += handle("fc", f.x(P.fcTime), f.y(prof.fcTemp), "var(--bt)") + `<text x="${f.x(P.fcTime)}" y="${f.y(prof.fcTemp) + 22}" text-anchor="middle">1차 크랙 ${mmss(P.fcTime)}<\/text>`;
+  s += handle("drop", f.x(prof.total), f.y(prof.dropTemp), "var(--bt)") + `<text x="${f.x(prof.total) - 4}" y="${f.y(prof.dropTemp) - 14}" text-anchor="end">배출 ${prof.dropTemp}℃ · ${mmss(prof.total)}<\/text>`;
+  svg.innerHTML = s; svg._f = f;
+}
+draggable($("#c-plan"), (id, px, py) => {
+  const f = $("#c-plan")._f;
+  if (id === "fc") { P.fcTime = clamp(Math.round(f.ix(px) / 5) * 5, 360, 720); P.ctl = null; }
+  if (id === "drop") { P.drop = clamp(Math.round(f.iy(py)), 185, 245); }
+  renderPlan();
+});
+
+function drawCtl(svg, steps, xMax, d) {
+  xMax = Math.ceil(xMax / 60) * 60;
+  const f = frame(svg, { xMax, yMin: 0, yMax: 100, yStep: 50, yUnit: "%", pad: { b: 16 } });
+  let s = f.grid;
+  const stepPts = (key, scale) => { const out = []; steps.forEach((st, i) => { const v = st[key] * scale; if (i > 0) out.push([f.x(st.t), f.y(steps[i - 1][key] * scale)]); out.push([f.x(st.t), f.y(v)]); }); out.push([f.x(xMax), f.y(steps[steps.length - 1][key] * scale)]); return out; };
+  s += poly(stepPts("heat", 1), "var(--heat)", 2);
+  if (d.hasDamper) s += poly(stepPts("air", 100), "var(--air)", 2, "4 3");
+  steps.forEach((st, i) => {
+    s += handle("h" + i, f.x(st.t), f.y(st.heat), "var(--heat)", 6);
+    if (d.hasDamper) s += handle("a" + i, f.x(st.t) + 0.01, f.y(st.air * 100), "var(--air)", 5);
+  });
+  svg.innerHTML = s; svg._f = f; svg._steps = steps;
+}
+function ctlDrag(svg, after) {
+  draggable(svg, (id, px, py) => {
+    const f = svg._f, steps = svg._steps, i = +id.slice(1), st = steps[i];
+    const v = clamp(Math.round(f.iy(py) / 5) * 5, 0, 100);
+    if (id[0] === "h") { st.heat = v; if (i > 0) { const lo = steps[i - 1].t + 10, hi = i < steps.length - 1 ? steps[i + 1].t - 10 : f.ix(f.W); st.t = clamp(Math.round(f.ix(px) / 5) * 5, lo, hi); } }
+    else st.air = v / 100;
+    after();
+  });
+}
+ctlDrag($("#c-plan-ctl"), () => { store.set("plan", P); renderPlan(); });
+
+/* ── 기록 ── */
+let LOG = store.get("log", null), SEL = null;
+function newLog() {
+  const d = dev(), xEnd = Math.ceil(prof.total / 60) + 1, temps = [];
+  for (let m = 0; m <= Math.max(xEnd, 12) * 2; m++) {
+    const t = m * 30; let T = m === 0 ? P.charge : (prof.curve ? (t <= prof.tpTime ? prof.pts.find((p) => p[0] >= t)[1] : prof.curve.bt(t)) : 150);
+    temps.push({ t, T: Math.round(T * 2) / 2 });
+  }
+  LOG = { step: 30, id: Date.now(), date: new Date().toISOString().slice(0, 10), roaster: P.roaster, bean: P.bean || "(이름 없음)", plan: JSON.parse(JSON.stringify(P)),
+    target: { total: prof.total, fcTime: P.fcTime, fcTemp: prof.fcTemp, dropTemp: prof.dropTemp, dtr: prof.dtr },
+    temps, ev: { tp: prof.tpTime, fc: P.fcTime, drop: Math.round(prof.total / 5) * 5 },
+    ctl: JSON.parse(JSON.stringify(P.ctl)), greenG: P.grams, roastedG: Math.round(P.grams * (1 - (E.LEVELS[P.level].loss[0] + E.LEVELS[P.level].loss[1]) / 200)), defects: [], score: 7, memo: "" };
+  store.set("log", LOG);
+}
+$("#to-log").addEventListener("click", () => { newLog(); showTab("log"); });
+const interpT = (t) => { const a = LOG.temps; for (let i = 1; i < a.length; i++) if (a[i].t >= t) { const k = (t - a[i - 1].t) / (a[i].t - a[i - 1].t); return a[i - 1].T + k * (a[i].T - a[i - 1].T); } return a[a.length - 1].T; };
+function logEvents() { return { tp: { t: LOG.ev.tp, T: interpT(LOG.ev.tp) }, fc: { t: LOG.ev.fc, T: interpT(LOG.ev.fc) }, drop: { t: LOG.ev.drop, T: interpT(LOG.ev.drop) } }; }
+function renderLog() {
+  if (!LOG) { if (!prof) renderPlan(); newLog(); }
+  const d = devs[LOG.roaster];
+  $("#log-title").textContent = LOG.bean; $("#log-sub").textContent = `${LOG.date} · ${d.name}`;
+  const svg = $("#c-log"), xMax = Math.ceil((Math.max(LOG.ev.drop, LOG.target.total) + 60) / 60) * 60;
+  const step = LOG.step || 60;
+  const tp = LOG.plan; const tprof = E.targetProfile(d, inpFrom(tp), d.cal);
+  // 세로 범위: 목표 곡선·투입 온도 기준으로 고정(끄는 동안 축이 움직이지 않게)
+  const tv = tprof.pts.map((p) => p[1]).filter(isFinite).concat([tp.charge || 200, LOG.target.dropTemp]);
+  const yMin = clamp(Math.floor((Math.min(...tv) - 15) / 10) * 10, 50, 200), yMax = clamp(Math.ceil((Math.max(...tv) + 10) / 10) * 10, 120, 250);
+  const W = 360, H = 470, pad = { l: 34, r: 26, t: 22, b: 22 };
+  const x = (t) => pad.l + t / xMax * (W - pad.l - pad.r), y = (v) => pad.t + (1 - (v - yMin) / (yMax - yMin)) * (H - pad.t - pad.b);
+  const y2 = (v) => pad.t + (1 - v / 30) * (H - pad.t - pad.b);
+  const f = { W, H, pad, x, y, y2, ix: (px) => clamp((px - pad.l) / (W - pad.l - pad.r) * xMax, 0, xMax), iy: (py) => yMin + (1 - (py - pad.t) / (H - pad.t - pad.b)) * (yMax - yMin) };
+  const fine = (yMax - yMin) <= 140; // 범위가 좁으면 1℃ 잔눈금까지
+  let s = "";
+  for (let t = 0; t <= xMax; t += 15) { const gx = x(t), major = t % 60 === 0, half = t % 30 === 0;
+    s += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${H - pad.b}" stroke="var(--${major ? "line" : "grid"})" stroke-width="${major ? 1 : half ? 0.7 : 0.35}"/>`;
+    if (major) s += `<text x="${gx}" y="${H - 7}" text-anchor="middle">${t / 60}<\/text>`; }
+  for (let v = yMin; v <= yMax; v += 1) { const gy = y(v), m10 = v % 10 === 0, m5 = v % 5 === 0;
+    if (!m5 && !fine) continue;
+    s += `<line x1="${pad.l}" y1="${gy}" x2="${W - pad.r}" y2="${gy}" stroke="var(--${m10 ? "line" : "grid"})" stroke-width="${m10 ? 1 : m5 ? 0.7 : 0.3}"/>`;
+    if (m10) s += `<text x="${pad.l - 4}" y="${gy + 3}" text-anchor="end">${v}<\/text>`; }
+  for (let v = 0; v <= 30; v += 5) s += `<text x="${W - pad.r + 3}" y="${y2(v) + 3}" style="fill:var(--ror)">${v}<\/text>`;
+  s += `<text x="${pad.l}" y="12">℃ · 가로 잔칸 15초 · 세로 잔칸 ${fine ? 1 : 5}℃ · 굵은 선 1분/10℃<\/text><text x="${W - 2}" y="12" text-anchor="end" style="fill:var(--ror)">RoR<\/text>`;
+  s += poly(tprof.pts.filter((p) => isFinite(p[1]) && p[1] >= yMin && p[1] <= yMax).map((p) => [x(p[0]), y(p[1])]), "var(--target)", 1.6, "3 3");
+  const vis = LOG.temps.filter((p) => p.t <= Math.ceil(LOG.ev.drop / step) * step);
+  s += poly(vis.map((p) => [x(p.t), y(clamp(p.T, yMin, yMax))]), "var(--bt)", 2);
+  // RoR: 60초 전 점과 비교(30초 간격 기록의 잡음 완화)
+  const rs = vis.map((p) => { const q = vis.find((o) => o.t === p.t - 60); return q && p.t >= 120 ? { t: p.t, ror: p.T - q.T } : null; }).filter(Boolean);
+  s += poly(rs.map((r) => [x(r.t), y2(clamp(r.ror, 0, 30))]), "var(--ror)", 1.6);
+  rs.filter((r) => r.t % 60 === 0).forEach((r) => { s += `<text x="${x(r.t)}" y="${y2(clamp(r.ror, 0, 30)) - 5}" text-anchor="middle" style="fill:var(--ror)">${r.ror.toFixed(1)}<\/text>`; });
+  [["tp", "중점"], ["fc", "1차 크랙"], ["drop", "배출"]].forEach(([k, n], j) => {
+    const gx = x(LOG.ev[k]);
+    s += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${H - pad.b}" stroke="var(--ink)" stroke-width="1.2" stroke-dasharray="2 3"/>`;
+    s += `<rect x="${gx - 12}" y="${pad.t}" width="24" height="${H - pad.t - pad.b}" fill="transparent" data-h="ev-${k}" style="cursor:ew-resize"/>`;
+    const ly = pad.t + 4 + j * 16;
+    s += `<rect x="${gx - 30}" y="${ly}" width="60" height="14" rx="7" fill="var(--paper)" stroke="var(--line)" pointer-events="none"/><text x="${gx}" y="${ly + 10}" text-anchor="middle" pointer-events="none">${n} ${mmss(LOG.ev[k])}<\/text>`;
+  });
+  if (SEL != null && LOG.temps[SEL]) { const p = LOG.temps[SEL];
+    s += `<line x1="${pad.l}" y1="${y(p.T)}" x2="${x(p.t)}" y2="${y(p.T)}" stroke="var(--bt)" stroke-width="1" stroke-dasharray="4 2"/><line x1="${x(p.t)}" y1="${y(p.T)}" x2="${x(p.t)}" y2="${H - pad.b}" stroke="var(--bt)" stroke-width="1" stroke-dasharray="4 2"/>`; }
+  vis.forEach((p) => { const i = LOG.temps.indexOf(p); s += handle("t" + i, x(p.t), y(clamp(p.T, yMin, yMax)), i === SEL ? "var(--ink)" : "var(--bt)", i === SEL ? 6 : 4); });
+  svg.innerHTML = s; svg._f = f;
+  const sp = SEL != null ? LOG.temps[SEL] : null;
+  $("#sel-read").innerHTML = sp ? `선택한 점 <b>${mmss(sp.t)}<\/b> · <b>${sp.T.toFixed(1)}℃<\/b>` : "점을 누르면 정확한 값이 나옵니다";
+  drawCtl($("#c-log-ctl"), LOG.ctl, xMax, d);
+  $("#r-roasted").max = LOG.greenG; $("#r-roasted").value = LOG.roastedG; $("#v-roasted").textContent = LOG.roastedG + " g (생두 " + LOG.greenG + " g)";
+  const loss = (1 - LOG.roastedG / LOG.greenG) * 100, L = E.LEVELS[LOG.plan.level];
+  $("#rec-loss").textContent = `무게 손실 ${loss.toFixed(1)}% · ${L.name} 기준 ${L.loss[0]}~${L.loss[1]}% (${L.lossSrc})`;
+  $("#defects").innerHTML = DEFS.map(([k, n]) => `<button type="button" data-d="${k}" aria-pressed="${LOG.defects.includes(k)}">${n}<\/button>`).join("");
+  $("#r-score").value = LOG.score; $("#v-score").textContent = LOG.score + " / 10"; $("#memo").value = LOG.memo;
+  store.set("log", LOG);
+}
+function inpFrom(p) { return { grams: p.grams, density: p.density, moisture: p.moisture, process: p.process, level: p.level, use: p.useMode === "yoo" ? "filter" : "espresso", dtrSource: p.useMode, fcTime: p.fcTime, dropTemp: p.drop ?? E.defaultDrop(p.level), dtrTarget: p.dtr, useYeoyeol: true }; }
+const DEFS = [["savory", "짭짤함"], ["grassy", "풋내"], ["sour", "시큼함"], ["papery", "종이·지푸라기"], ["smoky", "매캐함"], ["grain", "눅눅한 곡물"], ["scorch", "그슬림"], ["bitter", "쓴단맛"], ["acrid", "톡 쏨"]];
+draggable($("#c-log"), (id, px, py) => {
+  const f = $("#c-log")._f;
+  if (id.startsWith("ev-")) { const k = id.slice(3); let t = Math.round(f.ix(px) / 5) * 5;
+    if (k === "tp") t = clamp(t, 20, LOG.ev.fc - 30); if (k === "fc") t = clamp(t, LOG.ev.tp + 30, LOG.ev.drop - 15); if (k === "drop") t = clamp(t, LOG.ev.fc + 15, 1200);
+    LOG.ev[k] = t;
+    const st = LOG.step || 60, need = Math.ceil(t / st); while (LOG.temps.length - 1 < need) { const last = LOG.temps[LOG.temps.length - 1]; LOG.temps.push({ t: last.t + st, T: last.T + st / 30 }); }
+  } else { const i = +id.slice(1); SEL = i; LOG.temps[i].T = clamp(Math.round(f.iy(py) * 2) / 2, 50, 250); }
+  renderLog();
+}, null, (id) => { if (id[0] === "t") { SEL = +id.slice(1); renderLog(); } });
+document.getElementById("sel-ctl").addEventListener("click", (e) => {
+  const b = e.target.dataset.adj; if (b == null || SEL == null) return;
+  const st = LOG.step || 60, vis = LOG.temps.filter((p) => p.t <= Math.ceil(LOG.ev.drop / st) * st);
+  if (b === "prev") SEL = Math.max(0, SEL - 1);
+  else if (b === "next") SEL = Math.min(LOG.temps.indexOf(vis[vis.length - 1]), SEL + 1);
+  else LOG.temps[SEL].T = clamp(Math.round((LOG.temps[SEL].T + parseFloat(b)) * 2) / 2, 50, 250);
+  renderLog();
+});
+ctlDrag($("#c-log-ctl"), () => { store.set("log", LOG); renderLog(); });
+$("#r-roasted").addEventListener("input", (e) => { LOG.roastedG = +e.target.value; renderLog(); });
+$("#r-score").addEventListener("input", (e) => { LOG.score = +e.target.value; $("#v-score").textContent = LOG.score + " / 10"; store.set("log", LOG); });
+$("#memo").addEventListener("input", (e) => { LOG.memo = e.target.value; store.set("log", LOG); });
+$("#defects").addEventListener("click", (e) => { const k = e.target.dataset.d; if (!k) return; LOG.defects = LOG.defects.includes(k) ? LOG.defects.filter((x) => x !== k) : LOG.defects.concat(k); renderLog(); });
+
+/* ── 조언 ── */
+function analysisOf(log) {
+  const d = devs[log.roaster], ip = inpFrom(log.plan), pf = E.targetProfile(d, ip, d.cal);
+  const vis = log.temps.filter((p) => p.t % 60 === 0 && p.t <= Math.ceil(log.ev.drop / 60) * 60);
+  const saved = LOG; LOG = log; const evs = logEvents(); LOG = saved;
+  return E.analyze(d, ip, { events: evs, temps: vis, defects: log.defects, greenG: log.greenG, roastedG: log.roastedG }, pf);
+}
+function renderAdvice(log) {
+  const a = analysisOf(log);
+  $("#adv-list").innerHTML = a.findings.map((f) => `<div class="f ${f.level}"><div class="ti">${esc(f.title)}<\/div><div class="s">근거: ${esc(f.ev.s)} — ${esc(f.ev.t)}<\/div>${f.fix.length ? `<ul>${f.fix.map((x) => `<li>${esc(x.t)} <span class="s">(${esc(x.s)})<\/span><\/li>`).join("")}<\/ul>` : ""}<\/div>`).join("") || `<p class="muted">특이점이 없습니다.<\/p>`;
+  const nx = E.nextSuggestion(a);
+  $("#adv-next").innerHTML = nx.length ? nx.map(evHTML).join("") + evHTML({ t: "책은 방향만 말하고 바꾸는 폭(몇 ℃, 몇 %)은 말하지 않습니다. 한 번에 한 가지만 조금씩 바꾸고 다음 기록에서 비교하세요.", s: "앱 안내 · 라오 p.53(조금씩 조정)", app: true }) : `<p class="muted">이번 기록을 그대로 다음 기준으로 삼으세요.<\/p>`;
+}
+$("#analyze").addEventListener("click", () => { renderAdvice(LOG); showTab("adv"); });
+
+/* ── 저장·일지 ── */
+let HIST = store.get("hist", []);
+$("#save").addEventListener("click", () => {
+  const evs = logEvents(), d = devs[LOG.roaster];
+  const rec = JSON.parse(JSON.stringify(LOG));
+  rec.metrics = { dtr: (evs.drop.t - evs.fc.t) / evs.drop.t * 100, total: evs.drop.t, fcT: evs.fc.T, tpT: evs.tp.T, tpTime: evs.tp.t, loss: (1 - LOG.roastedG / LOG.greenG) * 100 };
+  HIST = HIST.filter((h) => h.id !== rec.id).concat(rec); store.set("hist", HIST);
+  d.cal = { tpTime: Math.round(evs.tp.t), tpTemp: Math.round(evs.tp.T), fcTemp: Math.round(evs.fc.T), fromLog: true }; saveDevs();
+  toast("일지에 저장 · 기기 기준점 보정됨"); renderAdvice(LOG); renderHist(); renderPlan(); showTab("adv");
+});
+function renderHist() {
+  const list = HIST.slice().sort((a, b) => b.id - a.id);
+  $("#hist").innerHTML = list.length ? list.map((h) => `<div class="it"><div class="m"><b>${esc(h.bean)}<\/b><span>${h.date} · ${esc(devs[h.roaster].name)} · 총 ${mmss(h.metrics.total)} · DTR ${h.metrics.dtr.toFixed(1)}% · 손실 ${h.metrics.loss.toFixed(1)}% · 만족 ${h.score}/10${h.defects.length ? " · 결점 " + h.defects.length : ""}<\/span><\/div>
+     <div class="row" style="flex:0 0 auto;gap:6px"><button class="btn ghost" style="padding:7px 9px;font-size:.8rem" data-open="${h.id}" type="button">열기<\/button><button class="btn ghost" style="padding:7px 9px;font-size:.8rem" data-next="${h.id}" type="button">다음 계획<\/button><\/div><\/div>`).join("") : `<p class="muted">저장한 기록이 여기에 쌓입니다. 같은 생두를 여러 번 볶으며 DTR·만족도가 어떻게 바뀌는지 볼 수 있습니다.<\/p>`;
+  drawTrend(list.slice(0, 12).reverse());
+}
+$("#hist").addEventListener("click", (e) => {
+  const o = e.target.dataset.open, n = e.target.dataset.next;
+  if (o) { LOG = JSON.parse(JSON.stringify(HIST.find((h) => h.id == o))); store.set("log", LOG); renderLog(); showTab("log"); }
+  if (n) { const h = HIST.find((x) => x.id == n); P = Object.assign({}, h.plan, { charge: h.plan.charge, ctl: JSON.parse(JSON.stringify(h.ctl)) }); store.set("plan", P); renderPlan(); renderAdvice(h); toast("지난 기록을 불러왔습니다. 조언을 보고 손으로 조정하세요"); showTab("plan"); }
+});
+function drawTrend(arr) {
+  const svg = $("#c-trend");
+  if (!arr.length) { svg.innerHTML = `<text x="180" y="78" text-anchor="middle">기록을 저장하면 추이가 그려집니다<\/text>`; return; }
+  const n = Math.max(arr.length - 1, 1);
+  const f = frame(svg, { xMax: n, yMin: 10, yMax: 35, yStep: 5, yUnit: "%", right: 10, rightStep: 5, pad: { b: 14 } });
+  let s = "";
+  for (let v = 10; v <= 35; v += 5) s += `<line x1="${f.pad.l}" y1="${f.y(v)}" x2="${f.W - f.pad.r}" y2="${f.y(v)}" stroke="var(--grid)"/><text x="${f.pad.l - 4}" y="${f.y(v) + 3}" text-anchor="end">${v}%<\/text>`;
+  s += `<rect x="${f.pad.l}" y="${f.y(25)}" width="${f.W - f.pad.l - f.pad.r}" height="${f.y(20) - f.y(25)}" fill="var(--good)" opacity=".14"/>`;
+  const X = (i) => arr.length === 1 ? f.x(n / 2) : f.x(i);
+  s += poly(arr.map((h, i) => [X(i), f.y(clamp(h.metrics.dtr, 10, 35))]), "var(--bt)", 2);
+  s += poly(arr.map((h, i) => [X(i), f.y2(h.score)]), "var(--ror)", 1.6, "4 3");
+  arr.forEach((h, i) => { s += `<circle cx="${X(i)}" cy="${f.y(clamp(h.metrics.dtr, 10, 35))}" r="3.5" fill="var(--bt)"/>`; });
+  svg.innerHTML = s;
+}
+
+/* ── 설정 ── */
+function renderSet() {
+  $("#devs").innerHTML = Object.entries(devs).map(([k, d]) => `<div class="card" style="margin-bottom:10px"><b>${esc(d.name)}<\/b>
+    <div class="lbl"><span>정격 용량<\/span><b>${d.capacityKg} kg<\/b><\/div><input type="range" data-dk="${k}" data-df="capacityKg" min="0.5" max="5" step="0.1" value="${d.capacityKg}">
+    <div class="lbl"><span>평소 투입량<\/span><b>${d.grams} g<\/b><\/div><input type="range" data-dk="${k}" data-df="grams" min="100" max="${Math.round(d.capacityKg * 1000)}" step="10" value="${d.grams}">
+    ${d.heatMode === "kpa" ? `<div class="lbl"><span>평소 최대 화력<\/span><b>${d.maxKpa.toFixed(2)} kPa<\/b><\/div><input type="range" data-dk="${k}" data-df="maxKpa" min="0.3" max="3" step="0.05" value="${d.maxKpa}">` : `<p class="hint">화력 게이지를 쓰지 않는 기기 — 상대 화력(%)으로 안내합니다.<\/p>`}
+    <p class="hint">${d.hasDamper ? `댐퍼 눈금 ${d.damperMin}~${d.damperMax}` : "댐퍼 없음"}${d.castIron ? " · 주물 드럼" : ""}${d.airLever ? " · 드럼/쿨러 공기 전환 레버" : ""}<\/p><\/div>`).join("");
+  $("#cal").innerHTML = Object.entries(devs).map(([k, d]) => `<p style="margin:.2rem 0"><b>${esc(d.name)}<\/b> — 중점 ${d.cal.tpTemp}℃ · ${mmss(d.cal.tpTime)}, 1차 크랙 ${d.cal.fcTemp}℃ <span class="muted">(${d.cal.fromLog ? "마지막 기록에서 보정" : "임시값"})<\/span> <button class="btn ghost" style="width:auto;padding:4px 8px;font-size:.78rem" data-cal="${k}" type="button">초기화<\/button><\/p>`).join("") + `<p class="hint">기록을 저장할 때마다 실제 중점·1차 크랙 온도로 바뀝니다. 1차 크랙 온도는 온도계 위치마다 달라 다른 로스터의 값을 그대로 쓰면 안 됩니다(라오 p.72).<\/p>`;
+}
+$("#devs").addEventListener("input", (e) => { const k = e.target.dataset.dk, fld = e.target.dataset.df; if (!k) return; devs[k][fld] = parseFloat(e.target.value); if (fld === "grams" && P.roaster === k) P.grams = devs[k].grams; saveDevs(); renderSet(); renderPlan(); });
+$("#cal").addEventListener("click", (e) => { const k = e.target.dataset.cal; if (!k) return; devs[k].cal = Object.assign({}, DEF_DEVS[k].cal); saveDevs(); renderSet(); renderPlan(); });
+const backup = () => JSON.stringify({ app: "rao-roast", v: 1, devs, plan: P, hist: HIST }, null, 0);
+$("#bk-copy").addEventListener("click", () => { const txt = backup(); (navigator.clipboard ? navigator.clipboard.writeText(txt) : Promise.reject()).then(() => toast("복사했습니다. 메모장·카톡 나에게 보내기에 붙여 두세요"), () => { $("#bk-in").value = txt; $("#bk-in").select(); toast("아래 칸의 내용을 길게 눌러 복사하세요"); }); });
+$("#bk-file").addEventListener("click", () => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([backup()], { type: "application/json" })); a.download = "로스팅일지-" + new Date().toISOString().slice(0, 10) + ".json"; a.click(); });
+$("#bk-restore").addEventListener("click", () => { try { const o = JSON.parse($("#bk-in").value); if (o.app !== "rao-roast") throw 0; devs = mergeDevs(o.devs || {}); P = Object.assign(P, o.plan || {}); HIST = o.hist || []; saveDevs(); store.set("plan", P); store.set("hist", HIST); renderAll(); toast("복원했습니다"); } catch (err) { toast("백업 형식이 아닙니다"); } });
+
+/* ── 탭 ── */
+function showTab(t) {
+  document.querySelectorAll(".tabs button").forEach((b) => b.setAttribute("aria-selected", b.dataset.tab === t));
+  ["plan", "log", "adv", "hist", "set"].forEach((x) => { $("#tab-" + x).hidden = x !== t; });
+  if (t === "log") renderLog(); if (t === "hist") renderHist(); if (t === "set") renderSet();
+  if (t === "adv" && LOG && $("#adv-list").textContent.includes("기록 탭에서")) renderAdvice(LOG);
+  window.scrollTo(0, 0);
+}
+document.querySelector(".tabs").addEventListener("click", (e) => { const t = e.target.dataset.tab; if (t) showTab(t); });
+function renderAll() { renderPlan(); renderHist(); renderSet(); }
+renderAll();
+const h = location.hash.replace("#", ""); if (["log", "adv", "hist", "set"].includes(h)) showTab(h);
+})();
+</script>
+</body>
+</html>
