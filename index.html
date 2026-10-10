@@ -202,6 +202,14 @@ textarea{font:inherit;font-size:.8rem;width:100%;min-height:90px;border-radius:9
   <button role="tab" data-tab="set">설정</button>
 </nav>
 
+<script>
+/* 오류가 나면 화면 위에 알림을 띄운다(오래된 브라우저에서도 동작하도록 옛 문법만 사용) */
+window.onerror = function (msg, src, line) {
+  var b = document.getElementById("errbar");
+  if (!b) { b = document.createElement("div"); b.id = "errbar"; b.style.cssText = "position:fixed;left:0;right:0;top:0;z-index:99;background:#b03a2e;color:#fff;font:14px/1.4 sans-serif;padding:10px 14px"; document.body.appendChild(b); }
+  b.textContent = "앱 오류: " + msg + " (줄 " + line + ") — 이 화면을 캡처해 보내 주세요. 브라우저: " + navigator.userAgent;
+};
+</script>
 <script>/* 라오 기준 로스팅 엔진 — 스콧 라오 『커피 로스팅』(한국어판)을 1순위로, 다른 장서 8권으로 보완.
    책에 없는 값은 반드시 { app:true } 로 표시한다(화면에 '앱 계산' 배지). 결정론 함수만 둔다. */
 (function (root) {
@@ -418,7 +426,7 @@ let P = Object.assign({ roaster: "easyster", bean: "", process: "washed", densit
 let prof = null, ctlPlan = null;
 const dev = () => devs[P.roaster];
 function inp() { return { grams: P.grams, density: P.density, moisture: P.moisture, process: P.process, level: P.level, use: P.useMode === "yoo" ? "filter" : "espresso",
-  dtrSource: P.useMode, fcTime: P.fcTime, dropTemp: P.drop ?? E.defaultDrop(P.level), dtrTarget: P.dtr, useYeoyeol: true }; }
+  dtrSource: P.useMode, fcTime: P.fcTime, dropTemp: P.drop != null ? P.drop : E.defaultDrop(P.level), dtrTarget: P.dtr, useYeoyeol: true }; }
 
 /* ── SVG 도우미 ── */
 function frame(svg, opt) {
@@ -433,16 +441,25 @@ function frame(svg, opt) {
   for (let t = 0; t <= opt.xMax; t += 60) { const gx = x(t); g += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${H - pad.b}" stroke="var(--grid)" stroke-width="1"/>`; if ((t / 60) % 2 === 0) g += `<text x="${gx}" y="${H - 5}" text-anchor="middle">${t / 60}<\/text>`; }
   for (let v = Math.ceil(opt.yMin / opt.yStep) * opt.yStep; v <= opt.yMax; v += opt.yStep) { const gy = y(v); g += `<line x1="${pad.l}" y1="${gy}" x2="${W - pad.r}" y2="${gy}" stroke="var(--grid)"/><text x="${pad.l - 4}" y="${gy + 3}" text-anchor="end">${v}${opt.yUnit || ""}<\/text>`; }
   if (opt.right) for (let v = 0; v <= opt.right; v += opt.rightStep) g += `<text x="${W - pad.r + 3}" y="${y2(v) + 3}" fill="var(--ror)" style="fill:var(--ror)">${v}<\/text>`;
-  return { W, H, pad, x, y, y2, ix, iy, grid: g };
+  return { W, H, pad, x, y, y2, ix, iy, grid: g, xMax: opt.xMax };
 }
 const poly = (pts, color, w, dash) => pts.length > 1 ? `<polyline points="${pts.map((p) => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" ")}" fill="none" stroke="${color}" stroke-width="${w}"${dash ? ` stroke-dasharray="${dash}"` : ""} stroke-linejoin="round" stroke-linecap="round"/>` : "";
 function svgPoint(svg, ev) { const pt = svg.createSVGPoint(); pt.x = ev.clientX; pt.y = ev.clientY; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
 function draggable(svg, onDrag, onEnd, onDown) {
   let id = null;
-  svg.addEventListener("pointerdown", (ev) => { const h = ev.target.closest("[data-h]"); if (!h) return; id = h.dataset.h; svg.setPointerCapture(ev.pointerId); ev.preventDefault(); onDown && onDown(id); });
-  svg.addEventListener("pointermove", (ev) => { if (id == null) return; const p = svgPoint(svg, ev); onDrag(id, p.x, p.y); });
-  const end = () => { if (id != null) { id = null; onEnd && onEnd(); } };
-  svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
+  const down = (ev, target) => { const h = target && target.closest ? target.closest("[data-h]") : null; if (!h) return false; id = h.dataset.h; svg._freezeX = svg._f ? svg._f.xMax : null; if (onDown) onDown(id); return true; };
+  const move = (ev) => { if (id == null) return; const p = svgPoint(svg, ev); onDrag(id, p.x, p.y); };
+  const end = () => { if (id != null) { id = null; svg._freezeX = null; if (onEnd) onEnd(); } };
+  if (window.PointerEvent) {
+    svg.addEventListener("pointerdown", (ev) => { if (!down(ev, ev.target)) return; try { svg.setPointerCapture(ev.pointerId); } catch (e) {} ev.preventDefault(); });
+    svg.addEventListener("pointermove", move);
+    svg.addEventListener("pointerup", end); svg.addEventListener("pointercancel", end);
+  } else { // 포인터 이벤트가 없는 오래된 브라우저: 터치로 대신
+    svg.addEventListener("touchstart", (ev) => { const t = ev.touches[0]; if (down(t, document.elementFromPoint(t.clientX, t.clientY))) ev.preventDefault(); }, { passive: false });
+    svg.addEventListener("touchmove", (ev) => { if (id == null) return; ev.preventDefault(); move(ev.touches[0]); }, { passive: false });
+    svg.addEventListener("touchend", end); svg.addEventListener("touchcancel", end);
+    svg.addEventListener("mousedown", (ev) => { if (down(ev, ev.target)) { const mm = (e) => move(e), mu = () => { end(); window.removeEventListener("mousemove", mm); window.removeEventListener("mouseup", mu); }; window.addEventListener("mousemove", mm); window.addEventListener("mouseup", mu); } });
+  }
 }
 const handle = (id, cx, cy, color, r = 7) => `<circle cx="${cx}" cy="${cy}" r="${r + 9}" fill="transparent" data-h="${id}" style="cursor:grab"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="${color}" stroke="var(--paper)" stroke-width="2" pointer-events="none"/>`;
 
@@ -519,7 +536,7 @@ function renderPlan(fromSlider) {
 document.addEventListener("click", (e) => { const r = e.target.dataset.reset; if (!r) return; P[r] = null; renderPlan(); });
 
 function drawPlanChart() {
-  const svg = $("#c-plan"), xMax = Math.ceil((Math.max(prof.total, 600) + 60) / 60) * 60;
+  const svg = $("#c-plan"), xMax = svg._freezeX || Math.ceil((Math.max(prof.total, 600) + 60) / 60) * 60;
   const f = frame(svg, { xMax, yMin: 50, yMax: 250, yStep: 50, right: 30, rightStep: 10 });
   let s = f.grid;
   // 단계 띠
@@ -540,7 +557,7 @@ draggable($("#c-plan"), (id, px, py) => {
   if (id === "fc") { P.fcTime = clamp(Math.round(f.ix(px) / 5) * 5, 360, 720); P.ctl = null; }
   if (id === "drop") { P.drop = clamp(Math.round(f.iy(py)), 185, 245); }
   renderPlan();
-});
+}, () => renderPlan());
 
 function drawCtl(svg, steps, xMax, d) {
   xMax = Math.ceil(xMax / 60) * 60;
@@ -587,7 +604,7 @@ function renderLog() {
   if (!LOG) { if (!prof) renderPlan(); newLog(); }
   const d = devs[LOG.roaster];
   $("#log-title").textContent = LOG.bean; $("#log-sub").textContent = `${LOG.date} · ${d.name}`;
-  const svg = $("#c-log"), xMax = Math.ceil((Math.max(LOG.ev.drop, LOG.target.total) + 60) / 60) * 60;
+  const svg = $("#c-log"), xMax = svg._freezeX || Math.ceil((Math.max(LOG.ev.drop, LOG.target.total) + 60) / 60) * 60;
   const step = LOG.step || 60;
   const tp = LOG.plan; const tprof = E.targetProfile(d, inpFrom(tp), d.cal);
   // 세로 범위: 목표 곡선·투입 온도 기준으로 고정(끄는 동안 축이 움직이지 않게)
@@ -596,7 +613,7 @@ function renderLog() {
   const W = 360, H = 470, pad = { l: 34, r: 26, t: 22, b: 22 };
   const x = (t) => pad.l + t / xMax * (W - pad.l - pad.r), y = (v) => pad.t + (1 - (v - yMin) / (yMax - yMin)) * (H - pad.t - pad.b);
   const y2 = (v) => pad.t + (1 - v / 30) * (H - pad.t - pad.b);
-  const f = { W, H, pad, x, y, y2, ix: (px) => clamp((px - pad.l) / (W - pad.l - pad.r) * xMax, 0, xMax), iy: (py) => yMin + (1 - (py - pad.t) / (H - pad.t - pad.b)) * (yMax - yMin) };
+  const f = { xMax, W, H, pad, x, y, y2, ix: (px) => clamp((px - pad.l) / (W - pad.l - pad.r) * xMax, 0, xMax), iy: (py) => yMin + (1 - (py - pad.t) / (H - pad.t - pad.b)) * (yMax - yMin) };
   const fine = (yMax - yMin) <= 140; // 범위가 좁으면 1℃ 잔눈금까지
   let s = "";
   for (let t = 0; t <= xMax; t += 15) { const gx = x(t), major = t % 60 === 0, half = t % 30 === 0;
@@ -636,7 +653,7 @@ function renderLog() {
   $("#r-score").value = LOG.score; $("#v-score").textContent = LOG.score + " / 10"; $("#memo").value = LOG.memo;
   store.set("log", LOG);
 }
-function inpFrom(p) { return { grams: p.grams, density: p.density, moisture: p.moisture, process: p.process, level: p.level, use: p.useMode === "yoo" ? "filter" : "espresso", dtrSource: p.useMode, fcTime: p.fcTime, dropTemp: p.drop ?? E.defaultDrop(p.level), dtrTarget: p.dtr, useYeoyeol: true }; }
+function inpFrom(p) { return { grams: p.grams, density: p.density, moisture: p.moisture, process: p.process, level: p.level, use: p.useMode === "yoo" ? "filter" : "espresso", dtrSource: p.useMode, fcTime: p.fcTime, dropTemp: p.drop != null ? p.drop : E.defaultDrop(p.level), dtrTarget: p.dtr, useYeoyeol: true }; }
 const DEFS = [["savory", "짭짤함"], ["grassy", "풋내"], ["sour", "시큼함"], ["papery", "종이·지푸라기"], ["smoky", "매캐함"], ["grain", "눅눅한 곡물"], ["scorch", "그슬림"], ["bitter", "쓴단맛"], ["acrid", "톡 쏨"]];
 draggable($("#c-log"), (id, px, py) => {
   const f = $("#c-log")._f;
@@ -646,7 +663,7 @@ draggable($("#c-log"), (id, px, py) => {
     const st = LOG.step || 60, need = Math.ceil(t / st); while (LOG.temps.length - 1 < need) { const last = LOG.temps[LOG.temps.length - 1]; LOG.temps.push({ t: last.t + st, T: last.T + st / 30 }); }
   } else { const i = +id.slice(1); SEL = i; LOG.temps[i].T = clamp(Math.round(f.iy(py) * 2) / 2, 50, 250); }
   renderLog();
-}, null, (id) => { if (id[0] === "t") { SEL = +id.slice(1); renderLog(); } });
+}, () => renderLog(), (id) => { if (id[0] === "t") { SEL = +id.slice(1); renderLog(); } });
 document.getElementById("sel-ctl").addEventListener("click", (e) => {
   const b = e.target.dataset.adj; if (b == null || SEL == null) return;
   const st = LOG.step || 60, vis = LOG.temps.filter((p) => p.t <= Math.ceil(LOG.ev.drop / st) * st);
